@@ -1,5 +1,6 @@
 package com.rhm.Security.config;
 
+import com.rhm.Security.token.TokenRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,7 +24,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
-
+    private final TokenRepository tokenRepository;
 
 
     @Override
@@ -35,7 +36,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String authHeader = request.getHeader("Authorization");
         final String jwt;
         final String userEmail;
-        if(authHeader == null || !authHeader.startsWith("Beaber")){
+        if(authHeader == null || !authHeader.startsWith("Bearer")){
             filterChain.doFilter(request,response);
             return;
         }
@@ -43,8 +44,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         userEmail = jwtService.extractUsername(jwt);//todo extract the userEmail from JWT token;
         if(userEmail!=null && SecurityContextHolder.getContext().getAuthentication()==null){
             UserDetails userDetails= this.userDetailsService.loadUserByUsername(userEmail);
-
-        if(jwtService.isTokenValid(jwt,userDetails)){
+        var isTokenValid=tokenRepository.findByToken(jwt)
+                .map(t-> !t.isExpired() && !t.isRevoked())
+                .orElse(false);
+        if(jwtService.isTokenValid(jwt,userDetails) && isTokenValid){
             UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                     userDetails,
                     null,
